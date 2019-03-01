@@ -8,6 +8,11 @@ type ChessInfo = {
     chessRefBlock: int
 }
 
+type ChatMsgInfo = {
+    msgSender: string,
+    msgTime: int,
+    msgContent: string
+}
 
 type Storage = {
     contractCreater: string,  -- 合约创建人
@@ -21,24 +26,26 @@ type Storage = {
     -- position_map (fast_map)   盘面棋子索引 -> 棋子位置
     -- chessinfo_map (fast_map)    棋子位置 -> 棋子信息
     roundWinColor: int, -- 本轮获胜颜色
-    roundBonusBalance: Map<int> -- 本轮奖金分配
+    roundBonusBalance: Map<int>, -- 本轮奖金分配
+    chatMessageIndex: int -- 聊天记录索引
+    -- chatmsginfo_map (fast_map)   聊天记录索引 -> 聊天记录
 }
 
 
 var M = Contract<Storage>()
 
 
-let chessBoardMaxSize = 1000
+let chessBoardMaxSize: int = 1000
 -- 棋盘大小 
-let chessBoardSize = 19
+let chessBoardSize: int = 19
 -- 颜色种类 
-let colorCount = 5
+let colorCount: int = 5
 -- 胜利条件 相同颜色棋子数量
-let chessCountWinCondition = 4
+let chessCountWinCondition: int = 4
 -- 开发者抽成 5%
 let cutPercentage: number = 0.05
 -- 允许投注资产类型
-let betAssetSymbol = "HX"
+let betAssetSymbol: string = "HX"
 -- 单笔投注金额
 let betPrice: int = 10000
 -- 资产精度
@@ -385,6 +392,7 @@ function M:init()
     -- chessinfo_map (fast_map)
     self.storage.roundWinColor = 0
     self.storage.roundBonusBalance = {}
+    self.storage.chatMessageIndex = 0
 end
 
 
@@ -597,6 +605,27 @@ function M:play_chess(args: string)
 
         return
     end
+end
+
+
+function M:send_chat_message(chatMsgB64Str: string)
+    self.storage.chatMessageIndex = tointeger(self.storage.chatMessageIndex) + 1
+    let chatMessageIndexStr: string = tostring(self.storage.chatMessageIndex)
+
+    let msgTime: int = tointeger(get_chain_now())
+
+    var chatMsgInfo = ChatMsgInfo()
+    chatMsgInfo.msgSender = caller_address
+    chatMsgInfo.msgTime = msgTime
+    chatMsgInfo.msgContent = chatMsgB64Str
+
+    let chatMsgInfoStr: string = json.dumps(chatMsgInfo)
+
+    fast_map_set("chatmsginfo_map", chatMessageIndexStr, chatMsgInfoStr)
+
+    emit EV_SendChatMsg(caller_address .. "," .. chatMsgB64Str)
+
+    return
 end
 
 
@@ -898,7 +927,7 @@ offline function M:getChessInfoByIndex(args: string)
 end
 
 
-offline function M:getChessInfoUserCount(_:string)
+offline function M:getChessInfoUserCount(_: string)
     var chessInfoUser: Map<int> = {}
     var chessInfoUserCount :int = 0
     for i=1,self.storage.chessinfoIndex do
@@ -948,7 +977,7 @@ offline function M:isAllowPlay(_: string)
 end
 
 
-offline function M:getRoundWinColor(_:string)
+offline function M:getRoundWinColor(_: string)
     return self.storage.roundWinColor
 end
 
@@ -962,9 +991,41 @@ offline function M:getRoundBonusBalance(addr: string)
 end
 
 
-offline function M:getBetPrice(_:string)
+offline function M:getBetPrice(_: string)
     return tonumber(betPrice) / tonumber(assetPrecision)
 end
+
+
+offline function M:getChatMsgIndex(_: string)
+    return self.storage.chatMessageIndex
+end
+
+
+offline function M:getChatMsgByIndex(args: string)
+    let parsed = parse_args(args, 2, "error of arg format: startIndex,endIndex")
+    let startIndex = tointeger(parsed[1])
+    let endIndex = tointeger(parsed[2])
+    if (startIndex < 1) or (startIndex > self.storage.chatMessageIndex) then
+        return error("startIndex should in [1, chatMessageIndex]")
+    end
+
+    if (endIndex < 1) or (endIndex > self.storage.chatMessageIndex) then
+        return error("endIndex should in [1, chatMessageIndex]")
+    end
+
+    if startIndex > endIndex then
+        return error("startIndex should not greater than endIndex")
+    end
+
+    var retArray = []
+    for i=startIndex,endIndex do
+        let chatMsgInfoStr: string = tostring(fast_map_get("chatmsginfo_map", tostring(i)))
+        retArray[#retArray+1] = chatMsgInfoStr
+    end
+
+    return retArray
+end
+
 
 return M
 
