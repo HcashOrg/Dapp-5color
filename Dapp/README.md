@@ -1,6 +1,5 @@
-# 此仓库废弃，新仓库  https://github.com/HcashOrg/Dapp-5color
 
-# mytest1
+# 5color
 
 > A Vue.js project
 
