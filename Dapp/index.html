@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>mytest1</title>
+  <script type="text/javascript" src="./static/hxjs.min.js"></script>
+  <script type="text/javascript" src="./static/hxPay.min.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <el-container>
+      <el-header class="header">
+      </el-header>
+      <el-dialog title="游戏须知" :visible.sync="dialogVisible" width="30%">
+        <div>
+          本游戏需要在PC设备上使用chrome或者opera浏览器，并下载安装<a href="https://github.com/HcashOrg/hxWebWalletExtension/releases">HX浏览器最新版插件</a>
+          <br>游戏规则
+          <br>1. 通过HX插件钱包向合约充值，合约中的HX余额也可以提回HX插件钱包
+          <br>2. 在棋盘某个位置双击鼠标左键可以放下一个棋子，棋子位置自选，颜色是随机的(共5种颜色)，单击可查看棋子信息
+          <br>3. 每下一个棋子需投注0.1个HX
+          <br>4. 如果出现横,竖或斜方向有4个同色棋子连珠，则判定为该颜色获胜，所有拥有该颜色棋子的用户根据其权重(拥有该获胜颜色的棋子数量)瓜分本轮奖励，同时合约创建者抽成5%
+          <br>5. 如果棋盘下满也无获胜颜色，则会触发全额退款
+          <br>6. 如果一局游戏长时间无人继续，管理员会强行重置游戏，会触发全额退款
+        </div>
+        <span slot="footer" class="dialog-footer">
+        </span>
+      </el-dialog>
+      <el-container class="body">
+        <el-aside class="sideleft">
+          <div class="user-info">
+            <div class="user-avatar">
+              <img src="/static/5color.jpg" height="150" width="270"/>
+            </div>
+            <hr class="separate-line" />
+            <div class="user-address">我的地址
+              <el-row style="font-size: 50%; color: #b16147"> {{ myAddress }} </el-row>
+            </div>
+            <div class="user-balance">我的钱包余额
+              <el-row><label style="font-size: 150%; color: #e8005e"> {{ myHxBalance }} </label> HX</el-row>
+            </div>
+            <div class="user-contract-balance">我的合约余额
+              <el-row><label style="font-size: 150%; color: #e8005e"> {{ myContractHxBalance }} </label> HX</el-row>
+            </div>
+            <div class="user-contract-balance">我的本轮投注
+              <el-row><label style="font-size: 150%; color: #e8005e"> {{ myRoundBet }} </label> HX</el-row>
+            </div>
+            <div class="user-contract-balance">我的本轮奖金
+              <el-row><label style="font-size: 150%; color: #e8005e"> {{ myRoundPrize }} </label> HX</el-row>
+            </div>
+          </div>
+          <hr class="separate-line" />
+          <div class="buttons">
+            <el-button type="primary " @click="depositToContract" class="deposit-button">充值
+            </el-button>
+            <el-button type="primary" @click="withdrawBalanceFromContract" class="withdraw-button">提现
+            </el-button>
+            <el-button type="primary" v-if="isEnabled" @click="restartRound" class="restart-button">重开
+            </el-button>
+          </div>
+        </el-aside>
+        <el-container>
+          <el-main class="main">
+            <div class="chess-board" width="720" height="720">
+              <div id="infoDiv" style="display: none; position: absolute; border-radius: 5px; background-color: beige;line-height: 30px; text-align: left; padding: 5px;"></div>
+              <canvas ref="canvas" class="board" width="720" height="720" @dblclick="chessClick" @mousedown="mousedown"
+                @mouseup="mouseup"></canvas>
+            </div>
+            <div class="detail-message">
+              <div class="div-bottom">
+                <el-input type="textarea" id="chatContent"  v-model="textareaInfo" placeholder="聊天内容。。。" resize="none" :autosize="{ minRows: 10, maxRows: 100 }" readonly></el-input>
+                <el-input class="messageInput" placeholder="请输入聊天内容" v-model="messageInput" maxlength="128">
+                  <el-button class="messageSend" slot="append" @click="sendMessage">发送</el-button>
+                </el-input>
+              </div>
+            </div>
+          </el-main>
+          <el-footer class="statusbar">
+            <div style="text-align: center;height: 10px;">
+              <label id="statusDiv" style="display:inline-block;width:200px; height: 10px; "></label>
+              <label id="wincolDiv" style="display:inline-block;width:200px; height: 10px; ">{{ winColorInfo}}</label>
+            </div>
+          </el-footer>
+        </el-container>
+        <el-aside class="sideright">
+          <div class="bonus-info">
+            <div>当前奖金池余额
+              <el-row><label style="font-size: 150%; color: #e8005e"> {{ bonusPoolBalance }} </label> HX</el-row>
+            </div>
+          </div>
+          <hr class="separate-line" />
+          <div class="contract-info">
+            <div>合约地址
+              <el-row style="font-size: 50%; color: #b16147"> {{ contractAddress }} </el-row>
+            </div>
+            <div>合约创建者
+              <el-row style="font-size: 50%; color: #b16147"> {{ contractCreator }} </el-row>
+            </div>
+            <div>合约总参与用户数
+              <el-row style="font-size: 50%; color: #b16147"> {{ contractUserCount }} </el-row>
+            </div>
+          </div>
+          <hr class="separate-line" />
+          <div class="round-info">
+            <div>第 <label style="font-size: 150%; color: #b3b32b">{{ roundIndex}} </label> 轮游戏
+            </div>
+            <div>本轮 <label style="font-size: 150%; color: #b3b32b">{{ roundParticipationCount}} </label> 用户参与
+            </div>
+            <div>本轮已有 <label style="font-size: 150%; color: #b3b32b">{{ roundChessCount }} </label>棋子
+            </div>
+          </div>
+          <hr class="separate-line" />
+          <div class="about">
+            <el-button type="text" @click="dialogVisible = true">查看游戏规则</el-button>
+          </div>
+        </el-aside>
+      </el-container>
+    </el-container>
+  </div>
+</body>
+
+<style>
+  .header {
+    position: absolute;
+    top: 0%;
+    left: 0%;
+    width: 100%;
+    padding: 10px;
+    background-color: #9C4FB4;
+    border: 1px solid black;
+    color: #fff;
+  }
+
+  .sideleft {
+    position: relative;
+    padding: 10px;
+    background-color: #6649A3;
+    border: 1px solid black;
+    color: #fff;
+  }
+
+  .user-info {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    color: #fff;
+    height: 85%;
+  }
+
+  .user-avatar {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    color: #fff;
+    height: 25%;
+    text-align: center;
+  }
+
+  .user-address {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 15%;
+    text-align: center;
+  }
+
+  .user-balance {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 15%;
+    text-align: center;
+  }
+
+  .user-contract-balance {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 15%;
+    text-align: center;
+  }
+
+  .buttons {
+    position: relative;
+    padding: 0px;
+    background-color: #6649A3;
+    color: #fff;
+    height: 10%;
+  }
+
+  .deposit-button {
+    position: relative;
+    background-color: #E5E2F0;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: black;
+  }
+
+  .withdraw-button {
+    position: relative;
+    background-color: #E5E2F0;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: black;
+  }
+
+  .restart-button {
+    position: relative;
+    background-color: #E5E2F0;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: black;
+  }
+
+  .body {
+    position: absolute;
+    top: 65px;
+    left: 0%;
+    width: 100%;
+    height: 90%;
+  }
+
+  .main {
+    position: relative;
+    top: 0px;
+    height: 96%;
+    padding: 10px;
+    background-color: #E5E2F0
+  }
+
+  .chess-board {
+    margin-top: 20px;
+    margin-left: 20px;
+  }
+
+  .messageInput, .detail-message {
+    margin-top: 20px;
+  }
+
+  .chess-board, .detail-message {
+    float: left;
+  }
+
+  .detail-message .div-bottom {
+    position: absolute;
+    bottom: 100px;
+  }
+
+  .statusbar {
+    position: relative;
+    padding: 10px;
+    background-color: #9C4FB4;
+    border: 1px solid black;
+    color: #fff;
+  }
+
+  .sideright {
+    position: relative;
+    float: right;
+    padding: 10px;
+    background-color: #6649A3;
+    border: 1px solid black;
+    color: #fff;
+  }
+
+  .bonus-info {
+    position: relative;
+    padding: 10px;
+    background-color: #6649A3;
+    color: #ff8713;
+    font-size: 150%;
+    font-family: "Microsoft YaHei", monospace;
+    height: 15%;
+    text-align: center;
+  }
+
+  .contract-info {
+    position: relative;
+    padding: 10px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 15%;
+    text-align: center;
+  }
+
+  .round-info {
+    position: relative;
+    padding: 10px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 15%;
+    text-align: center;
+  }
+
+  .about {
+    position: relative;
+    padding: 10px;
+    background-color: #6649A3;
+    font-size: 100%;
+    font-family: "Microsoft YaHei", monospace;
+    color: #fff;
+    height: 30%;
+    text-align: center;
+  }
+</style>
+
+</html>
