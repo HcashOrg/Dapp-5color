@@ -582,7 +582,7 @@ new Vue({
     },
     mouseup() {
       let infoDiv = document.getElementById('infoDiv');
-      infoDiv.style.display = "none";;
+      infoDiv.style.display = "none";
     },
     hxPayListener(serialNumber, resp, name) {
       console.log("resp: " + JSON.stringify(resp))

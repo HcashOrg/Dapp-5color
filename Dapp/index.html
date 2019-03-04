@@ -64,7 +64,7 @@
         <el-container>
           <el-main class="main">
             <div class="chess-board" width="720" height="720">
-              <div id="infoDiv" style="display: none; position: absolute; border-radius: 5px; background-color: beige;line-height: 30px; text-align: left; padding: 5px;"></div>
+                <div id="infoDiv" style="display: none; position: absolute; border-radius: 5px; background-color: beige;line-height: 30px; text-align: left; padding: 5px; z-index: 9999;"></div>
               <canvas ref="canvas" class="board" width="720" height="720" @dblclick="chessClick" @mousedown="mousedown"
                 @mouseup="mouseup"></canvas>
             </div>
@@ -72,8 +72,8 @@
               <div class="div-bottom">
                 <el-input type="textarea" id="chatContent"  v-model="textareaInfo" placeholder="聊天内容。。。" resize="none" :autosize="{ minRows: 10, maxRows: 100 }" readonly></el-input>
                 <el-input class="messageInput" placeholder="请输入聊天内容" v-model="messageInput" maxlength="128">
-                  <el-button class="messageSend" slot="append" @click="sendMessage">发送</el-button>
                 </el-input>
+                <el-button class="messageSend" type="primary" slot="append" @click="sendMessage">发送</el-button>
               </div>
             </div>
           </el-main>
@@ -246,6 +246,10 @@
 
   .messageInput, .detail-message {
     margin-top: 20px;
+  }
+
+  .messageInput {
+    width: 83%;
   }
 
   .chess-board, .detail-message {
