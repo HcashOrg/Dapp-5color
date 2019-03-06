@@ -330,6 +330,8 @@ new Vue({
             'getContractState',
             ''
           ).then(result => {
+            this.myRoundPrize = 0
+            this.winColorInfo = ''
             if (result === 'Round_Not_Start') {
               statusDiv.innerHTML = "游戏状态:" + "本轮游戏未开始"
               this.refreshUserInfo()
