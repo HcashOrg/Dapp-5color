@@ -366,15 +366,24 @@ let function sub_user_balance(m: table, userAddr: string, balance: int)
 end
 
 -- 查询某个位置的棋子信息
-let function query_chess_info(m: table, chess_position: int)
-    check_chess_position(chess_position)
+let function query_chess_info(m: table, chessPosition: int)
+    check_chess_position(chessPosition)
 
     var chessInfo = ""
-    let tmp = fast_map_get("chessinfo_map", tostring(chess_position))
+    let tmp = fast_map_get("chessinfo_map", tostring(chessPosition))
     if tmp then
         chessInfo = tostring(tmp)
     end
     return chessInfo  
+end
+
+-- 根据字符串计算出一个整形值
+let function get_hex_string_value(hexStr: string)
+    var value: int = 0
+    for i=1,string.len(hexStr) do
+        value = value + string.byte(hexStr,tointeger(i),tointeger(i))
+    end
+    return value
 end
 
 ------------------------- online ------------------------------
@@ -471,9 +480,9 @@ function M:play_chess(args: string)
         lastChessTime = chessInfo.chessTime
     end
 
-    if tointeger(get_chain_now()) <= lastChessTime then
-        return error("can't play chess at current time")
-    end
+    -- if tointeger(get_chain_now()) <= lastChessTime then
+    --     return error("can't play chess at current time")
+    -- end
 
     -- 落子位置检查
     check_chess_position(chessPosition)
@@ -496,8 +505,13 @@ function M:play_chess(args: string)
     -- 奖池
     self.storage.bonusPoolBalance = self.storage.bonusPoolBalance + betPrice
 
-    let random: int = tointeger(get_chain_random())
-    let chessColor: int = tointeger((random % colorCount) + 1)
+    let random: int = tointeger(get_chain_random() % 10000) 
+    let trxId: string = string.upper(tostring(get_transaction_id()))
+    if string.len(trxId) ~= 40 then
+        return error("invalid transaction id length")
+    end
+    let random2: int = tointeger(get_hex_string_value(string.sub(trxId, 36, 40)) % 10000) 
+    let chessColor: int = tointeger(((random + random2) % colorCount) + 1)
     let chessTime: int = tointeger(get_chain_now())
     let chessRefBlock: int = tointeger(get_header_block_num()) + 1
 
@@ -955,23 +969,23 @@ offline function M:isAllowPlay(_: string)
         return false
     end
 
-    var lastChessTime: int
-    if self.storage.chessinfoIndex == 0 then
-        lastChessTime = 0
-    else
-        let chessPositionStr: string = tostring(fast_map_get("position_map", tostring(self.storage.chessinfoIndex)))
-        let chessInfoStr: string = query_chess_info(self, tointeger(chessPositionStr))
+    -- var lastChessTime: int
+    -- if self.storage.chessinfoIndex == 0 then
+    --     lastChessTime = 0
+    -- else
+    --     let chessPositionStr: string = tostring(fast_map_get("position_map", tostring(self.storage.chessinfoIndex)))
+    --     let chessInfoStr: string = query_chess_info(self, tointeger(chessPositionStr))
         
-        let chessInfo: ChessInfo = totable(json.loads(chessInfoStr))
-        if (not chessInfo) then
-            return error("assert: nil chessInfo")
-        end
-        lastChessTime = chessInfo.chessTime
-    end
+    --     let chessInfo: ChessInfo = totable(json.loads(chessInfoStr))
+    --     if (not chessInfo) then
+    --         return error("assert: nil chessInfo")
+    --     end
+    --     lastChessTime = chessInfo.chessTime
+    -- end
 
-    if tointeger(get_chain_now()) <= lastChessTime then
-        return false
-    end
+    -- if tointeger(get_chain_now()) <= lastChessTime then
+    --     return false
+    -- end
 
     return true
 end
